@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/Quizzes/Quizzes.iml" filepath="$PROJECT_DIR$/Quizzes/Quizzes.iml" />
+      <module fileurl="file://$PROJECT_DIR$/learn_experiment/classroom_cloud.iml" filepath="$PROJECT_DIR$/learn_experiment/classroom_cloud.iml" />
+      <module fileurl="file://$PROJECT_DIR$/google-api-python-client/google-api-python-client.iml" filepath="$PROJECT_DIR$/google-api-python-client/google-api-python-client.iml" />
+    </modules>
+  </component>
+</project>
