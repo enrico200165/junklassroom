@@ -11,17 +11,7 @@ from consolemenu.items import *
 
 from  little_utils_interface import *
 
-
-# --- Logging ---
-logging.basicConfig(
-    format='%(asctime)s %(filename)s %(lineno)s %(levelname)-8s \n%(message)s',
-    level=logging.INFO,
-    datefmt='%Y-%m-%d %H:%M:%S')
-# logging.basicConfig(format='%(asctime)s - %(message)s', level = LOG_LEVEL)
-logfh = logging.handlers.RotatingFileHandler("logging.log", mode='a', maxBytes=1024*4, backupCount=0, 
-encoding=None, delay=False, errors=None)
-log = logging.getLogger(__name__)
-log.addHandler(logfh)
+log = gd.log
 
 
 class TestMenus(unittest.TestCase):
@@ -30,12 +20,15 @@ class TestMenus(unittest.TestCase):
         log.info("test_menu_9temsmax()")
         menu_items = {}
         for i in range(10):
-            menu_items[str(i)] = ("choice_"+str(i), "id_"+str(i), None)
-        key, triple = menu_1_choice_(menu_items)
+            menu_items[str(i)] = ChoiceDescriptor("choice_"+str(i), "id_"+str(i), None)
+
+        key, triple = menu_1_choice(menu_items)
         log.info("key: {}".format(key)+str(triple))
+
 
 def console_menu_sample_code():
     # Create the menu
+    log.info("create the menu")
     menu = ConsoleMenu("Title", "Subtitle")
 
     # Create some items

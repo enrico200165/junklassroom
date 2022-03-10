@@ -27,6 +27,10 @@ def adjust_4_dir_name(name):
     name = name.replace(')',"")
 
     name = name.replace(':',"")
+    name = name.replace(';',"")
+
+    name = name.replace('+',"")
+    name = name.replace('*',"")
 
     return name
 

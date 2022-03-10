@@ -22,7 +22,7 @@ gmail_service = None
 def get_gmail_service():
     global gmail_service
     if gmail_service is None:
-        log.info("first time, will get new gmail service")
+        log.debug("first time, will get new gmail service")
         gmail_service = get_gmail_service_native()
 
     return gmail_service
@@ -101,13 +101,13 @@ def build_message_OOOD(destination, obj, body, attachments=[]):
 def build_message(to, sender, obj, body, attachments=[]):
     if not attachments: # no attachments given
         message = MIMEText(body)
-        message['to'] = gd.EMAIL_ENRICO200165
-        message['from'] = gd.EMAIL_VIALI_GALILEI
+        message['to'] = to
+        message['from'] = sender
         message['subject'] = obj
     else:
         message = MIMEMultipart()
-        message['to'] = gd.EMAIL_ENRICO200165
-        message['from'] = gd.EMAIL_VIALI_GALILEI
+        message['to'] = to
+        message['from'] = sender
         message['subject'] = obj
         message.attach(MIMEText(body))
         # for filename in attachments:
@@ -115,9 +115,9 @@ def build_message(to, sender, obj, body, attachments=[]):
     return {'raw': base64.urlsafe_b64encode(message.as_bytes()).decode()}
 
 
-# copiato da https://developers.google.com/gmail/api/guides/sending
 def send_message(service, user_id, message):
   """Send an email message.
+    # copiato da https://developers.google.com/gmail/api/guides/sending
 
   Args:
     service: Authorized Gmail API service instance.
@@ -130,10 +130,11 @@ def send_message(service, user_id, message):
   """
   try:
     message = (service.users().messages().send(userId=user_id, body=message).execute())
-    log.info('Message Id: %s' % message['id'])
+    log.debug('Message Id: %s' % message['id'])
     return message
   except :
-    print('An error occurred: ')
+    log.error('An error occurred: ')
+    return None
 
 
 

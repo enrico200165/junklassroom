@@ -20,11 +20,12 @@ import global_vars as gv
 import little_utils_gdrive as gdrlu
 import little_utils_generic as lu_g
 import little_utils_interface as lu_i
+import gclass_enrico_pers_utils as gc_u
 #import student_wev as stud
 import students_db as std_db
 import submission_attach_cl_wev as sat
 
-log = logging.getLogger(__name__)
+log = gd.log
 
 
 class Submission_wev:
@@ -60,8 +61,11 @@ class Submission_wev:
         if 'submissionHistory' in api_submission_initialized.keys():
             self.set_submission_history(api_submission_initialized)
         try: 
-            gd.log.debug("subm id: {} userId: {} creationTime: {} updateTime: {}".format(api_submission_initialized['id'],
-            api_submission_initialized['userId'], api_submission_initialized['creationTime'], api_submission_initialized['updateTime']))
+            gd.log.debug("subm id: {} userId: {} creationTime: {} updateTime: {}".format(
+                lu_g.dict_get(api_submission_initialized,'id'), 
+                lu_g.dict_get(api_submission_initialized,'userId'),
+                lu_g.dict_get(api_submission_initialized,'creationTime'),
+                lu_g.dict_get(api_submission_initialized,'updateTime')))
         except KeyError as e:
             gd.log.error(e)
 
@@ -107,7 +111,7 @@ class Submission_wev:
                 elif state == 'CREATED':
                     self.creation_time =  tmsp
                 else:
-                    gd.log.warn("ignoring history state: {} - {} - '{}'".format(state, self.student_email, self.coursework_title))
+                    gd.log.debug("ignoring history state: {} - {} - '{}'".format(state, self.student_email, self.coursework_title))
                     pass
             elif 'gradeHistory' in submission_history.keys():
                 grade_history = submission_history['gradeHistory']
@@ -229,19 +233,26 @@ class Submission_wev:
 
     @property
     def late(self):
+        # misleading given that I anticipate the due date of gd.SUBMISSION_DELTA
         return self._late
+    #
     @late.setter
     def late(self, value):
         self._late = value
 
     @property
     def days_late(self):
+
         if not self.is_turned_in:
-            dates_delta = datetime.today().date() -  self._coursework_wev.due_date
+            dates_delta = datetime.today().date()      - self._coursework_wev.due_date
         else:
             dates_delta = self.first_turned_in.date()  - self._coursework_wev.due_date
-        days_late = dates_delta.days
-        if days_late < 0: days_late = 0
+        # I anticipated the delivery date of a delta, here I must ... put it back
+        days_late = (dates_delta - gd.SUBMISSION_DELTA).days
+        
+        if days_late < 0: 
+            days_late = 0
+
         return days_late
 
 
@@ -298,13 +309,19 @@ class Submission_wev:
         return self.student.email
 
 
-    def check_attach_naming(self):
+    def check_attach_naming(self, penalty_points_first = 5, penalty_points_next = 2):
         
-        attach_with_problems = {} # dict of attachment with problems
-        # { "pippo.txt": ["mistake 1 ...", "mistake 2" ], "otherfile.doc": ["mistake 10",""]}
-        for attach in self.attachments_l:
-            print(attach)
-        
+        found_errors = False; penalty_points = 0; messages_all_l = []        
+        if self.has_attachments:
+            for attachment in self.attachments_l:
+                ok, msgs_l = gc_u.check_attachment_filename(attachment)
+                if not ok:
+                    found_errors = True
+                    penalty_points = penalty_points_first if penalty_points == 0 else (penalty_points+penalty_points_next)
+                    messages_all_l += msgs_l
+
+        return found_errors, penalty_points, messages_all_l
+
 
     def check(self):
         messages = []
@@ -416,35 +433,40 @@ class Submission_wev:
                 body=studentSubmission).execute()
             # log.info(ret)
         except Exception as e:
-            log.error("problem writing grade:\ncourse: {}\ncoursework: {}\nstudent: {}\n{}"
-            .format(self.course_title, self.coursework_title, self.student_email, e))
-            print("https://stackoverflow.com/questions/69098186/how-to-fixed-project-permission-denied-problem-for-update-draft-grade-and-assign")
-            print("DA url DI SOPRA")
-            print("... if the resource you are trying to modify has been created manually for instance, this means that it is not associated with any developer project, hence the error you are receiving. ...")
+            log.warning("writing grade refused (normal if coursework not created by API):\ncourse: {}\ncoursework: {}\nstudent: {}, normal for coursework created manually and not by the API"
+            .format(self.course_title, self.coursework_title, self.student_email))
+            log.debug(e)
+            # https://stackoverflow.com/questions/69098186/how-to-fixed-project-permission-denied-problem-for-update-draft-grade-and-assign"+
+            # DA url DI SOPRA: ... if the resource you are trying to modify has been created manually for instance, 
+            # this means that it is not associated with any developer project, hence the error you are receiving. ...")
 
 
-    def correction_banner(self, prompt_left = "", prompt_right = ""):
-        print("\n"+ gd.BANNER_LEV_3.format("", " "+colored(self.student_email, 'green')+" ", ""))
+    def correction_banner(self, prompt_left = None, prompt_right = None):
+       
+        if prompt_left is None: prompt_left = ""; 
+        if prompt_right is None: prompt_right = ""
+
+        print("\n"+ gd.BANNER_LEV_3.format(prompt_left, " "+colored(self.student_email, 'green')+" ", prompt_right))
         print('"{}" - due: {} - submitted: {}'.format(self.coursework_title, self.due_date, 
             str(self.first_turned_in)[:16]))
         if self.days_late > 0: print(colored("### LATE, days: {}".format(self.days_late),"red"))
         print("previous grade: "+str(self.assigned_grade))
 
 
-    def correct_submission(self, dir_cw_download, gdrive_service_initialized, start_explorer = True):
+    def correct_submission(self, dir_cw_download, gdrive_service_initialized, start_explorer = True,
+        message = None):
 
-        self.correction_banner()
+        self.correction_banner(prompt_left = message)
 
         ret, student_dir =  self.download_attachments(dir_cw_download, gdrive_service_initialized)
         if ret and start_explorer: lu_g.open_file_explorer(student_dir)
 
         comments_l, grade_djustment = self.examine_submission()
-
-        grade = lu_i.get_int("insert the grade (solely based on content),"+
+        content_grade = lu_i.get_int("insert the grade (solely based on content),"+
             " < {} not to grade, 0 to exit correction: ".format(gd.GRADE_MINIMUM))
-
+        grade = content_grade - grade_djustment
         # comments planned but NOT yet AVAILABLE in the API, see classroom support and SO
-        #  comment = input("insert comment to the grade:\n")
+        # comment = input("insert comment to the grade:\n")
         # merge automatic comments and comment and grade and grade_adjustment
         # self.publish_comments(comments_l)
         self.write_grade(grade) # if grade < min grade it will not be written

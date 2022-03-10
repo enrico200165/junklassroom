@@ -17,11 +17,11 @@ class SubmissionAttachment_wev:
 
     def __init__(self, api_subm_attach_obj):
 
-        obj = api_subm_attach_obj['driveFile']
-        self.id = obj['id']
-        self.title = obj['title']
-        self.alternate_link  = obj['alternateLink']
-        self.thumbnail_url  = obj['thumbnailUrl']
+        obj = lu_g.dict_get(api_subm_attach_obj, 'driveFile')
+        self.id = lu_g.dict_get(obj,'id')
+        self.title = lu_g.dict_get(obj,'title')
+        self.alternate_link = lu_g.dict_get(obj,'alternateLink')
+        self.thumbnail_url  = lu_g.dict_get(obj, 'thumbnailUrl')
 
     @property
     def id(self):

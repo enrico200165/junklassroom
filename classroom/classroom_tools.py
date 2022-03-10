@@ -58,7 +58,7 @@ def session(credentials, scopes, terminate_on_fail = True):
         except Exception as e:
             log.warn("eccezione",e)
     if terminate_on_fail:
-        log.error("Unable to get service, terminating (is internet connection working?)")
+        log.error("Unable to get service, terminating (is the (Inter)net connection working?)")
         exit(1)
 
     return None

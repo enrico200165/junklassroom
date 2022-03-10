@@ -1,6 +1,6 @@
 import logging
 from  logging import handlers
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 from os.path import join
 
@@ -11,9 +11,12 @@ logging.basicConfig(
     format='%(asctime)s %(filename)s %(lineno)s %(levelname)-8s \n%(message)s',
     level=logging.INFO,
     datefmt='%Y-%m-%d %H:%M:%S')
-# logging.basicConfig(format='%(asctime)s - %(message)s', level = LOG_LEVEL)
+
+frmter = logging.Formatter('{lineno}**{message}** at{asctime}|{name}',style='{')
 logfh = handlers.RotatingFileHandler("logging.log", mode='a', maxBytes=1024*4, backupCount=0, 
-encoding=None, delay=False, errors=None)
+    encoding=None, delay=False, errors=None)
+logfh.setFormatter(frmter)
+
 log = logging.getLogger(__name__)
 log.addHandler(logfh)
 
@@ -181,6 +184,7 @@ BANNER_LEV_1 = "{}######################{}######################{}"
 BANNER_LEV_2 = "{}================={}================={}"
 BANNER_LEV_3 = "{}---------------{}---------------{}"
 
-
 GRADE_MINIMUM = 30
 GRADE_MAXIMUM = 100
+
+SUBMISSION_DELTA = timedelta(days = 1, hours = 12, minutes = 0)

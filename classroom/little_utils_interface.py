@@ -2,6 +2,8 @@
 
 import global_defs as gd
 from anyio import typed_attribute
+from termcolor import colored
+
 
 log = gd.log    
 
@@ -106,13 +108,14 @@ def get_y_n(prompt):
 
 class ChoiceDescriptor:
     
-    def __init__(self, display_name, id, object_or_value): 
+    def __init__(self, display_name, id, object_or_value, selected = False):
         self.display_name = display_name
         self.id = id
         self.object_or_value = object_or_value
+        self.selected = selected # for multiselections
 
 
-def menu_1_choice_(choices_dictionary, 
+def menu_1_choice(choices_dictionary, 
     start_prompt = "Select am option (return key not needed)",  
     end_prompt = "'{}' was selected", 
     key_value_prompt = "{} for {}"):
@@ -129,15 +132,20 @@ def menu_1_choice_(choices_dictionary,
     if start_prompt is not None: 
         print(start_prompt)
 
-    for choice_key, choice_descr in adjusted_choices.items():
-        print(key_value_prompt.format(choice_key, choice_descr.display_name))
-    choice_orig = getch()
-    choice = choice_orig.decode("ascii")
+    while True:
+        for choice_key, choice_descr in adjusted_choices.items():
+            print(key_value_prompt.format(choice_key, choice_descr.display_name))
+        choice_orig = getch()
+        choice = choice_orig.decode("ascii")
+        if not choice in adjusted_choices.keys():
+            print("you have chosen a non available choice: '{}'".format(choice))
+        else:
+            break
 
     if end_prompt is not None: 
         print(end_prompt.format(choice+ " -> "+adjusted_choices[choice].display_name))
 
-    return adjusted_choices[choice]
+    return choice, adjusted_choices[choice]
 
 
 def generate_menu_keys_for_list(items_list):
@@ -160,12 +168,88 @@ def menu_1_choice_autokey(triples_list,
 
     choices_dict = generate_menu_keys_for_list(triples_list)
 
-    choice_descr = menu_1_choice_(choices_dict, start_prompt, end_prompt, key_value_prompt)
-    return choice_descr
+    choice, choice_descr = menu_1_choice(choices_dict, start_prompt, end_prompt, key_value_prompt)
+    return choice, choice_descr
     
 
+def menu_main():
+    choices_l = [
+        ChoiceDescriptor(colored("Exit",'green'),      None, None),
+        ChoiceDescriptor("controllo nomi attachments", None, None),
+        ChoiceDescriptor("correzione compiti",         None, None),
+    ]
+    choice, choice_descr = menu_1_choice_autokey(choices_l)
+    return choice, choice_descr
+
+
+def menu_multiple_choice(entries_dictionary, 
+    start_prompt = "Select multiple options (u to end)",  
+    end_prompt = "'{}' was selected", 
+    key_value_prompt = "{} for {}"):
+    """ takes as values a dictionary with entries of the form
+    choice_ckey: [display_name: , unique_id, object/value]
+    returns [display_name: , unique_object_id_object]
+    """
+
+    # convert originary choice keys into strings
+    adjusted_entries_d = {}
+    for k, v in entries_dictionary.items():
+        if not isinstance(v, ChoiceDescriptor):
+            log.error("found wrong type{} when {} expected".format(type(v),type(ChoiceDescriptor.__name__)))
+        adjusted_entries_d[str(k)] = v
+
+    if start_prompt is not None: 
+        print(start_prompt)
+
+    choice = ""
+    while choice != "u": # change it to enter or ctrl+u
+        for choice_key, choice_descr in adjusted_entries_d.items():
+            prompt = key_value_prompt.format(choice_key, choice_descr.display_name)
+            pre_prompt = "[x]" if choice_descr.selected else "[ ]"
+            print(pre_prompt+" "+prompt)
+        choice_orig = getch()
+        choice = choice_orig.decode("ascii") # verbose to look into it if needed
+        if choice == "u": 
+            break
+        elif choice in adjusted_entries_d.keys():
+            adjusted_entries_d[choice].selected = not adjusted_entries_d[choice].selected
+        else:
+            print("you entered a choice not available: '{}'".format(choice))
+        print("--------------")
+
+    choices_selected_keys_l = []; 
+    choices_selected_descr_l = []; choices_nselected_descr_l = []
+    for choice_key, choice_descr in adjusted_entries_d.items():
+        if choice_descr.selected: 
+            choices_selected_descr_l.append(choice_descr)
+            choices_selected_keys_l.append(choice_key)
+        else:                     choices_nselected_descr_l.append(choice_descr)
+
+    return choices_selected_descr_l, choices_nselected_descr_l, choices_selected_keys_l 
+
+
+def menu_multiple_choice_autokey(descr_list, 
+    start_prompt = "Select multiple options (u to end)",  
+    end_prompt = "'{}' was selected", 
+    key_value_prompt = "{} for {}"):
+    """"""
+    choice_sel_descr_l, choice_nsel_descr_l, choices_l = [], [], []
+
+    if descr_list is None or len(descr_list) <= 0:
+        log.warning("passed empty list to menu_multiple_choice_autokey()")
+    else:
+        choices_dict = generate_menu_keys_for_list(descr_list)
+        choice_sel_descr_l, choice_nsel_descr_l, choices_l  = menu_multiple_choice(
+            choices_dict, start_prompt, end_prompt, key_value_prompt)
+
+    return choice_sel_descr_l, choice_nsel_descr_l, choices_l
+
+
+
+
 if __name__ == '__main__':
-    
+
+    choices_descr_l = [  ChoiceDescriptor("choice"+str(i), "id"+str(i), "object"+str(i)) for i in range(10) ]
 
     def test_menu_1_choice():
 
@@ -174,26 +258,21 @@ if __name__ == '__main__':
             3 : ChoiceDescriptor("1l 33", "id dello 33 ", 133),
             9 : ChoiceDescriptor("lo 99", "id 99", 1999),
         }
-        choice = menu_1_choice_(choices_d)
+        choice = menu_1_choice(choices_d)
         print(choice)
 
     # test_menu_1_choice()
 
-    def test_menu_1_choice_autokey():
+    def test_menu_multiple_choice_autokey():
 
-        choices_l = [
-            ChoiceDescriptor("lo zero", "id dello 0 ", 100),
-            ChoiceDescriptor("1l 33", "id dello 33 ", 133),
-            ChoiceDescriptor("lo 99", "id 99", 1999),
-        ]
-        choice = menu_1_choice_autokey(choices_l)
-        print(choice)
+        # selected_descr_l, unselec_descr_l, key_choices_l = menu_multiple_choice_autokey(choices_descr_l)
+        selected_descr_l, unselec_descr_l, key_choices_l = menu_multiple_choice_autokey([])
 
-    test_menu_1_choice_autokey()
+        for descr in selected_descr_l: print("selected '{}'".format(descr.display_name)) 
+        for descr in unselec_descr_l:  print("UNselec  '{}'".format(descr.display_name)) 
 
-    get_y_n("vuoi divertirti?")
-    
-    while False:
-        x = getch()
-        print(x)
-    
+    # test_menu_multiple_choice_autokey()
+    # 
+    test_menu_1_choice()
+
+    # get_y_n("vuoi divertirti?")

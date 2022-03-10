@@ -6,10 +6,10 @@
 
 import os
 
-from googleapiclient.errors import HttpError
-
-
 from datetime import datetime, date, time
+from termcolor import colored
+
+from googleapiclient.errors import HttpError
 
 # --- my imports ---
 import global_defs as gd
@@ -70,18 +70,18 @@ def init(cfg_file_path):
 
 def check_attachments_names(courses_l):
     max_emails = 5
-    if "y" == ilt.get_y_n("vuoi cambiare max emails mandate? (adesso {})".format(max_emails)):
-        max_emails = ilt.get_int("max_emails da mandare: ")
-    email_mandate = 0
+    if "y" == ilt.get_y_n("do you want to change the number of max emails sent? (currently {})".format(max_emails)):
+        max_emails = ilt.get_int("max number of emails to sent: ")
+    emails_nr_set = 0
     for course_triple in courses_l:
-        if email_mandate >= max_emails: break
+        if emails_nr_set >= max_emails: break
         course = course_triple.object_or_value
         for cw in course.course_works_l:
             if cw.due_days_ago is not None and cw.due_days_ago < -2:
                 continue
-            email_mandate = cw.check_submissions_attachments_naming(email_mandate, max_emails)
-            print("ora le email mandate sono {} per '{}'".format(email_mandate, cw.title))
-            if email_mandate >= max_emails: break
+            emails_nr_set = cw.check_submissions_attachments_naming(emails_nr_set, max_emails)
+            print("ora le email mandate sono {} per '{}'".format(emails_nr_set, cw.title))
+            if emails_nr_set >= max_emails: break
 
 def main():
 
@@ -95,16 +95,22 @@ def main():
 
     courses_l = courses_database.get_courses(classroom_service, gdrive_service, ENRICO_ID)    
     
-    if "y" == ilt.get_y_n("Controllo i nomi degli attachments?"):
-        check_attachments_names(courses_l)
+    go_on = True
+    while go_on:
+        choice, _ = ilt.menu_main()
+        if  "0" == choice:
+            go_on == False
+        elif choice == "1":
+            check_attachments_names(courses_l)
+        elif choice == "2": 
+            _ , choice_course_descr = ilt.menu_1_choice_autokey(courses_l, start_prompt = "Choose course (return key not needed)")
+            course = choice_course_descr.object_or_value
+            if course is None:
+                log.warning("Course not found")
+                continue
+            course.correct_courseworks(days_back = 14, max_nr_to_correct = 5)
 
-    choice_course_descr = ilt.menu_1_choice_autokey(courses_l, start_prompt = "Choose course (return key not needed)")
-    course = choice_course_descr.object_or_value
-    if course is None:
-        log.warning("No course found")
-        return
-    course.correct_courseworks(days_back = 14, max_nr_to_correct = 5)
-
+    log.info("Exiting")
 
 if __name__ == '__main__':
     main()

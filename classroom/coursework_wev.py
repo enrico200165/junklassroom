@@ -72,7 +72,7 @@ class CourseWork_wev:
             "state": "PUBLISHED"
             }
        
-        day_before = due_date - timedelta(days=1)
+        day_before = due_date - gd.SUBMISSION_DELTA # non testato dopo modifica
         body_d['dueDate'] = { "year": day_before.year, "month": day_before.month, "day": day_before.day }
         body_d['dueTime'] = { "hours": 17, "minutes": 45, "seconds": 0, "nanos": 0}
 
@@ -290,41 +290,41 @@ class CourseWork_wev:
         return subm_correct_l, subm_autograde_l, subm_ignore_l
 
 
-    def check_submissions_attachments_naming(self, email_mandate, max_email = 25):
-        
-        gmail_service = gmt.get_gmail_service()
+    def check_submissions_attachments_naming(self, emails_nr_sent, emails_max_nr_to_send = 25):
+        """ checks all attachments eventually present in a submission"""
+        gmail_service = gmt.get_gmail_service() # dirty, for now leave it like this
 
         students_mistakes_dic = {}
-        for s in self.submissions_l:
-            if s.has_attachments:
-                for a in s.attachments_l:
-                    ok, msgs_l = gc_u.check_attachment_filename(a)
-                    if s.student_email not in students_mistakes_dic.keys():
-                        students_mistakes_dic[s.student_email] = msgs_l # firs entry
-                    else:
-                        students_mistakes_dic[s.student_email] += msgs_l # add messages
-
-        if email_mandate >= max_email:
-            return email_mandate
+        for submission in self.submissions_l:
+            found_errors, penalty_points, msgs_l = submission.check_attach_naming(penalty_points_first = 5, penalty_points_next = 2)
+            if not found_errors:
+                continue
+            # found errors
+            msgs_l.insert(0, "submission link: {}".format(submission._api_submission['alternateLink']))
+            if submission.student_email not in students_mistakes_dic.keys():
+                students_mistakes_dic[submission.student_email] = msgs_l  # first time create entry
+            else:
+                students_mistakes_dic[submission.student_email] += msgs_l # already present add messages to messages list
 
         for email, msgs in students_mistakes_dic.items():
-            if True or "y" == lu_i.get_y_n("email about naming to {}".format(s.student_email)):
-                body = "mail automatica per {}".format(s.student_email)
-                body += "\nPossibili errori nei files consegnati"
-                body += "\nper assignment '{}'\n".format(self.title)
-                body += "\nurl/link {}\n".format(self.alternate_link)
-                body += "\n\n".join(msgs)
-                msg = gmt.build_message(gd.EMAIL_VIALI_GALILEI, gd.EMAIL_ENRICO200165, 
+            if emails_nr_sent >= emails_max_nr_to_send:
+                break
+            body = "mail automatica per {}".format(email)
+            body += "\n\nPossibili errori nei files consegnati per assignment:"
+            body += "\n'{}'".format(self.title)
+            body += "\nassignment link: {}".format(self.alternate_link)
+            messages = "\n\n".join(msgs)
+            body += "\n\n"+messages
+            print(" ----- mail body to console-----\n"+body)
+            if "y" == lu_i.get_y_n("Do you want to actually send the email above?"):
+                msg = gmt.build_message(email, gd.EMAIL_VIALI_GALILEI,
                     obj = "Possibili errori nei nomi degli attachments (email automatica)"
                     ,body = body, attachments=[])
-                # gmt.send_message(service = gmail_service, user_id = "me", message = msg)
-                print(" ----- mail body (inveced di inviare) -----\n",body)
-                email_mandate += 1
-            if email_mandate >= max_email:
-                break
+                gmt.send_message(service = gmail_service, user_id = "me", message = msg)
+                emails_nr_sent += 1
             continue # just to breakpoint
         
-        return email_mandate
+        return emails_nr_sent
 
     def correct_submissions(self, force_dir_root_download, gdrive_service_initialized, 
         start_explorer = False, prompt_single = False):
@@ -348,12 +348,32 @@ class CourseWork_wev:
         webbrowser.open(self.alternate_link)
 
         should_examine_l, subm_autograde_l, subm_ignore_l = self.check_submissions_for_correction_l
-        print(" --- To Correct ---")
-        for subm in should_examine_l: print("{}".format(subm.student_email)) 
-        print(" --- To Autogr. ---")
-        for subm in subm_autograde_l:  print("{:<48} first turned in: {}".format(subm.student_email, subm.first_turned_in))
-        print(" --- To Ignore  ---")
-        for subm in subm_ignore_l:    print("{:<48} first turned in: {}".format(subm.student_email, subm.first_turned_in))
+        # print(" --- To Correct ---")
+        # for subm in should_examine_l: print("{}".format(subm.student_email)) 
+        # print(" --- To Autogr. ---")
+        # for subm in subm_autograde_l:  print("{:<48} first turned in: {}".format(subm.student_email, subm.first_turned_in))
+        # print(" --- To Ignore  ---")
+        # for subm in subm_ignore_l:    print("{:<48} first turned in: {}".format(subm.student_email, subm.first_turned_in))
+
+        
+        # (multiple) selected students will not be autograded
+        student_entries = [] # build menu entries
+        for subm in subm_autograde_l: 
+            student_entries.append(lu_i.ChoiceDescriptor(subm.student_email, subm.id, subm))
+
+        no_autogr_descr_l, autograde_descr_l, choice_keys_l = lu_i.menu_multiple_choice_autokey(
+            student_entries, 
+            start_prompt = "select NOT to autograde (u to end)",  
+            end_prompt = "'{}' was selected", 
+            key_value_prompt = "{} for {}")
+
+        grade_4_autograding = gd.GRADE_MINIMUM
+        grade_use = grade_4_autograding
+        for choice_descript in autograde_descr_l:
+            subm = choice_descript.object_or_value
+            log.info("autograde '{}' with '{}'".format(subm.student_email, grade_4_autograding))
+            # log.info("now not actually writing")
+            # subm.write_grade(grade_use, grade_type = 0)
 
         for subm in should_examine_l: # [0] list 
             # subm.download_attachments(dir_download, gdrive_service_initialized)
@@ -362,18 +382,11 @@ class CourseWork_wev:
                 log.info("asked to exit correction")
                 break
         
-        grade_4_autograding = gd.GRADE_MINIMUM
-        ask_for_each  = True
-        for subm in subm_autograde_l: # [1] list 
-            cur_grade = grade_4_autograding # if in future want to personalize
-            prompt = "autograde: {}".format(cur_grade)
-            subm.correction_banner(prompt_left = prompt)
-            if lu_i.get_y_n("do you confirm "+prompt) != "y":
-                cur_grade = lu_i.get_int("grade for autograding (0 to exit this cw)", 0, gd.GRADE_MAXIMUM)
-                if cur_grade == 0:
-                    break
-            subm.write_grade(cur_grade, grade_type = 0)
-        
+        # student submissions removed from autograde
+        for descr in no_autogr_descr_l:
+            subm = descr.object_or_value
+            subm.correct_submission(dir_download, gdrive_service_initialized,
+            message = colored("removed from autograde","yellow"))
 
     def dump_str(self, verbose = False, newLine = False):
         ret = ""

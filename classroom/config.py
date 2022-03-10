@@ -35,7 +35,7 @@ class GoogleEducationConfig(object):
         ''' extract values from parsed config'''
 
         pathname = self._cfg_file_path if pathname is None else pathname
-        log.info("reading config file: " + pathname)
+        log.debug("reading config file: " + pathname)
         self._config = self.read_config_file(pathname)
         # old debug: for section in config: print(section)
 
